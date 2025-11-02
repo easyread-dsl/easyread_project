@@ -7,6 +7,9 @@
 #SBATCH --error=slurm_logs/slurm_%j.err
 
 # Training configuration script for ARASAAC LoRA training
+#
+# To resume from a checkpoint, add the --resume_from_checkpoint argument:
+# --resume_from_checkpoint="../../lora_output/checkpoint-4000" \
 
 # Create logs directory if it doesn't exist
 mkdir -p slurm_logs

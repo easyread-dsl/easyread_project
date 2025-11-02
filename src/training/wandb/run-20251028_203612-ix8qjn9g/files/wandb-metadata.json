@@ -1,0 +1,96 @@
+{
+  "os": "Linux-6.8.0-79-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.10.18",
+  "startedAt": "2025-10-28T19:36:12.139867Z",
+  "args": [
+    "--pretrained_model_name_or_path=runwayml/stable-diffusion-v1-5",
+    "--data_dir=../../data/training_data",
+    "--output_dir=../../lora_output",
+    "--resolution=256",
+    "--train_batch_size=16",
+    "--gradient_accumulation_steps=16",
+    "--num_train_epochs=100",
+    "--learning_rate=1e-4",
+    "--lora_rank=16",
+    "--lora_alpha=16",
+    "--mixed_precision=fp16",
+    "--seed=42",
+    "--logging_steps=50",
+    "--save_steps=500",
+    "--dataloader_num_workers=2",
+    "--wandb_entity=ndickenmann-eth-z-rich",
+    "--wandb_project=dsl",
+    "--wandb_run_name=long run"
+  ],
+  "program": "/work/courses/dslab/team4/easyread_project/src/training/train_lora.py",
+  "codePath": "train_lora.py",
+  "codePathLocal": "train_lora.py",
+  "git": {
+    "remote": "https://github.com/YanisRey/easyread_project.git"
+  },
+  "email": "ndickenmann@ethz.ch",
+  "root": "/work/courses/dslab/team4/easyread_project/src/training",
+  "host": "studgpu-node01.inf.ethz.ch",
+  "executable": "/home/ndickenmann/miniconda3/envs/diffusers/bin/python",
+  "cpu_count": 28,
+  "cpu_count_logical": 28,
+  "gpu": "NVIDIA GeForce RTX 5060 Ti",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "73861140480",
+      "used": "48374108160"
+    }
+  },
+  "memory": {
+    "total": "270342037504"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 5060 Ti",
+      "memoryTotal": "17103323136",
+      "cudaCores": 4608,
+      "architecture": "Blackwell",
+      "uuid": "GPU-424afe07-7fe0-fb51-c3a8-bcf8f37453a6"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "slurm": {
+    "cluster_name": "cluster",
+    "conf": "/etc/slurm/slurm.conf",
+    "cpus_on_node": "2",
+    "gpus": "5060ti:1",
+    "gpus_on_node": "1",
+    "gtids": "0",
+    "job_account": "dslab_jobs",
+    "job_cpus_per_node": "2",
+    "job_end_time": "1761683762",
+    "job_gid": "450785",
+    "job_gpus": "0",
+    "job_id": "1891",
+    "job_name": "train_lora",
+    "job_nodelist": "studgpu-node01",
+    "job_num_nodes": "1",
+    "job_partition": "jobs",
+    "job_qos": "ndickenmann-dslab_jobs",
+    "job_start_time": "1761680162",
+    "job_uid": "544963",
+    "job_user": "ndickenmann",
+    "jobid": "1891",
+    "localid": "0",
+    "mem_per_node": "24576",
+    "nnodes": "1",
+    "nodeid": "0",
+    "nodelist": "studgpu-node01",
+    "oom_kill_step": "0",
+    "prio_process": "0",
+    "procid": "0",
+    "submit_dir": "/work/courses/dslab/team4/easyread_project/src/training",
+    "submit_host": "student-cluster2.inf.ethz.ch",
+    "task_pid": "713992",
+    "tasks_per_node": "1",
+    "topology_addr": "studgpu-node01",
+    "topology_addr_pattern": "node"
+  },
+  "writerId": "nd39i5jsa0djmq2dcv80g2dgel5umqnm"
+}

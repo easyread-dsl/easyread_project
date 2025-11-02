@@ -281,15 +281,51 @@ def train(args):
     vae.to(accelerator.device, dtype=torch.float32)
     text_encoder.to(accelerator.device)
 
+    # Resume from checkpoint if specified
+    global_step = 0
+    starting_epoch = 0
+
+    if args.resume_from_checkpoint:
+        print(f"Resuming from checkpoint: {args.resume_from_checkpoint}")
+
+        # Load LoRA weights
+        checkpoint_path = Path(args.resume_from_checkpoint)
+        if not checkpoint_path.exists():
+            raise ValueError(f"Checkpoint path does not exist: {args.resume_from_checkpoint}")
+
+        # Load the LoRA adapter weights
+        unwrapped_unet = accelerator.unwrap_model(unet)
+        unwrapped_unet.load_adapter(args.resume_from_checkpoint, adapter_name="default")
+        print(f"Loaded LoRA weights from {args.resume_from_checkpoint}")
+
+        # Load training state (optimizer, scheduler, global_step)
+        training_state_path = checkpoint_path / "training_state.pt"
+        if training_state_path.exists():
+            training_state = torch.load(training_state_path, map_location=accelerator.device)
+            global_step = training_state['global_step']
+            optimizer.load_state_dict(training_state['optimizer_state_dict'])
+            lr_scheduler.load_state_dict(training_state['lr_scheduler_state_dict'])
+            print(f"Resumed from global step {global_step}")
+
+            # Calculate starting epoch based on global_step
+            num_update_steps_per_epoch = math.ceil(
+                len(train_dataloader) / args.gradient_accumulation_steps
+            )
+            starting_epoch = global_step // num_update_steps_per_epoch
+            print(f"Starting from epoch {starting_epoch}")
+        else:
+            print(f"Warning: training_state.pt not found in {args.resume_from_checkpoint}")
+            print("Starting from step 0, but using loaded LoRA weights")
+
     # Training loop
     print("Starting training...")
-    global_step = 0
     progress_bar = tqdm(
-        range(args.max_train_steps),
+        range(global_step, args.max_train_steps),
+        initial=global_step,
         disable=not accelerator.is_local_main_process
     )
 
-    for epoch in range(args.num_train_epochs):
+    for epoch in range(starting_epoch, args.num_train_epochs):
         unet.train()
         epoch_loss = 0.0
         epoch_steps = 0
@@ -364,7 +400,7 @@ def train(args):
                 # Save checkpoint and run validation
                 if global_step % args.save_steps == 0:
                     save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-                    save_lora_weights(accelerator, unet, save_path)
+                    save_lora_weights(accelerator, unet, save_path, optimizer, lr_scheduler, global_step)
 
                     # Generate validation images
                     if accelerator.is_main_process:
@@ -435,12 +471,24 @@ def train(args):
     print("Training complete!")
 
 
-def save_lora_weights(accelerator, model, save_path):
-    """Save LoRA weights."""
+def save_lora_weights(accelerator, model, save_path, optimizer=None, lr_scheduler=None, global_step=None):
+    """Save LoRA weights and training state."""
     os.makedirs(save_path, exist_ok=True)
 
+    # Save LoRA weights
     unwrapped_model = accelerator.unwrap_model(model)
     unwrapped_model.save_pretrained(save_path)
+
+    # Save optimizer and scheduler state for resuming
+    if optimizer is not None and lr_scheduler is not None and global_step is not None:
+        training_state = {
+            'global_step': global_step,
+            'optimizer_state_dict': optimizer.state_dict(),
+            'lr_scheduler_state_dict': lr_scheduler.state_dict(),
+        }
+        state_path = os.path.join(save_path, "training_state.pt")
+        torch.save(training_state, state_path)
+        print(f"Saved training state to {state_path}")
 
     print(f"Saved LoRA weights to {save_path}")
 
@@ -724,6 +772,14 @@ def parse_args():
         type=str,
         default=None,
         help="W&B run name (auto-generated if not provided)"
+    )
+
+    # Checkpoint resuming
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint directory to resume training from"
     )
 
     return parser.parse_args()

@@ -50,7 +50,8 @@ def generate_pictogram(
     negative_prompt="blurry, photo, photograph, realistic, complex, detailed background",
     num_inference_steps=30,
     guidance_scale=7.5,
-    seed=None
+    seed=None,
+    instance_token=None
 ):
     """
     Generate a pictogram from a text prompt.
@@ -62,7 +63,12 @@ def generate_pictogram(
         num_inference_steps: Number of denoising steps
         guidance_scale: How closely to follow the prompt
         seed: Random seed for reproducibility
+        instance_token: Optional instance token to prepend to prompt (e.g., "sks")
     """
+    # Prepend instance token if provided
+    if instance_token is not None:
+        prompt = f"{instance_token} {prompt}"
+
     generator = None
     if seed is not None:
         generator = torch.Generator(device=pipeline.device).manual_seed(seed)
@@ -142,6 +148,12 @@ def main():
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use"
     )
+    parser.add_argument(
+        "--instance_token",
+        type=str,
+        default=None,
+        help="Instance token to prepend to prompt (e.g., 'sks' for LoRA fine-tuned models)"
+    )
 
     args = parser.parse_args()
 
@@ -152,8 +164,13 @@ def main():
         args.device
     )
 
-    print(f"\nGenerating {args.num_images} pictogram(s) for: '{args.prompt}'")
+    # Prepare final prompt with instance token if provided
+    final_prompt = f"{args.instance_token} {args.prompt}" if args.instance_token else args.prompt
+
+    print(f"\nGenerating {args.num_images} pictogram(s) for: '{final_prompt}'")
     print(f"Negative prompt: '{args.negative_prompt}'")
+    if args.instance_token:
+        print(f"Using instance token: '{args.instance_token}'")
 
     # Generate images
     for i in range(args.num_images):
@@ -166,7 +183,8 @@ def main():
             args.negative_prompt,
             args.steps,
             args.guidance_scale,
-            seed
+            seed,
+            args.instance_token
         )
 
         # Save image
