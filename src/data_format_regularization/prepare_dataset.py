@@ -22,7 +22,7 @@ import os
 
 # ------------------------- Base paths -------------------------
 DATA_DIR = (Path(__file__).resolve().parent / "../../data").resolve()
-TRAINING_DIR = DATA_DIR / "training_data"
+TRAINING_DIR = DATA_DIR / "training_data_arsaac"
 
 # Dataset source directories
 ARASAAC_DIR = DATA_DIR / "arasaac"
@@ -502,15 +502,15 @@ def main():
     # all_metadata.extend(dataset_data)
     # grand_total += n
 
-    # OPENMOJI
-    dataset_data, n = process_openmoji(all_metadata, existing_keys, save_interval=1000)
-    all_metadata.extend(dataset_data)
-    grand_total += n
-    
-    # # ARASAAC
-    # dataset_data, n = process_arasaac(all_metadata, existing_keys, save_interval=1000)
+    # # OPENMOJI
+    # dataset_data, n = process_openmoji(all_metadata, existing_keys, save_interval=1000)
     # all_metadata.extend(dataset_data)
     # grand_total += n
+    
+    # ARASAAC
+    dataset_data, n = process_arasaac(all_metadata, existing_keys, save_interval=1000)
+    all_metadata.extend(dataset_data)
+    grand_total += n
     
 
     # Final save (with backups)

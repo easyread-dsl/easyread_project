@@ -419,7 +419,8 @@ def train(args):
                             validation_prompts=args.validation_prompts,
                             num_inference_steps=args.num_inference_steps,
                             guidance_scale=args.guidance_scale,
-                            seed=args.seed
+                            seed=args.seed,
+                            resolution=args.resolution
                         )
 
                         # Save validation images locally
@@ -504,7 +505,8 @@ def generate_validation_images(
     validation_prompts=None,
     num_inference_steps=50,
     guidance_scale=7.5,
-    seed=42
+    seed=42,
+    resolution=512
 ):
     """Generate validation images for monitoring training progress."""
     if validation_prompts is None:
@@ -551,8 +553,15 @@ def generate_validation_images(
             text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
             # Prepare latents
+            # Calculate latent dimensions: VAE downsamples by 8x
+            latent_size = resolution // 8
+
+            # Get in_channels from unwrapped model config
+            unwrapped_unet = accelerator.unwrap_model(unet)
+            in_channels = unwrapped_unet.config.in_channels
+
             latents = torch.randn(
-                (1, unet.config.in_channels, 64, 64),
+                (1, in_channels, latent_size, latent_size),
                 generator=generator,
                 device=accelerator.device,
                 dtype=text_embeddings.dtype
@@ -733,7 +742,7 @@ def parse_args():
         "--validation_prompts",
         type=str,
         nargs="+",
-        default=["school", "train", "camp", "mother"],
+        default=["school", "forest", "camp", "mother"],
         help="Prompts to use for validation image generation"
     )
     parser.add_argument(

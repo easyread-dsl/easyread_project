@@ -50,6 +50,8 @@ def generate_pictogram(
     negative_prompt="blurry, photo, photograph, realistic, complex, detailed background",
     num_inference_steps=30,
     guidance_scale=7.5,
+    height=256,
+    width=256,
     seed=None,
     instance_token=None
 ):
@@ -62,6 +64,8 @@ def generate_pictogram(
         negative_prompt: What to avoid in generation
         num_inference_steps: Number of denoising steps
         guidance_scale: How closely to follow the prompt
+        height: Image height in pixels
+        width: Image width in pixels
         seed: Random seed for reproducibility
         instance_token: Optional instance token to prepend to prompt (e.g., "sks")
     """
@@ -79,6 +83,8 @@ def generate_pictogram(
             negative_prompt=negative_prompt,
             num_inference_steps=num_inference_steps,
             guidance_scale=guidance_scale,
+            height=height,
+            width=width,
             generator=generator
         ).images[0]
 
@@ -109,7 +115,7 @@ def main():
     parser.add_argument(
         "--negative_prompt",
         type=str,
-        default="blurry, photo, photograph, realistic, complex, detailed background",
+        default=None,
         help="Negative prompt"
     )
     parser.add_argument(
@@ -127,7 +133,7 @@ def main():
     parser.add_argument(
         "--steps",
         type=int,
-        default=30,
+        default=50,
         help="Number of inference steps"
     )
     parser.add_argument(
@@ -135,6 +141,18 @@ def main():
         type=float,
         default=7.5,
         help="Guidance scale"
+    )
+    parser.add_argument(
+        "--height",
+        type=int,
+        default=256,
+        help="Image height (should match training resolution)"
+    )
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=256,
+        help="Image width (should match training resolution)"
     )
     parser.add_argument(
         "--seed",
@@ -183,6 +201,8 @@ def main():
             args.negative_prompt,
             args.steps,
             args.guidance_scale,
+            args.height,
+            args.width,
             seed,
             args.instance_token
         )

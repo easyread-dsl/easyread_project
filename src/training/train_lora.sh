@@ -6,7 +6,7 @@
 #SBATCH --output=slurm_logs/slurm_%j.out
 #SBATCH --error=slurm_logs/slurm_%j.err
 
-# Training configuration script for ARASAAC LoRA training
+# Training configuration script for LoRA training
 #
 # To resume from a checkpoint, add the --resume_from_checkpoint argument:
 # --resume_from_checkpoint="../../lora_output/checkpoint-4000" \

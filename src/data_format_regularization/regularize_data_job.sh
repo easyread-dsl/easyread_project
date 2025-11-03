@@ -2,7 +2,6 @@
 #SBATCH --job-name=regularize_data
 #SBATCH --partition=inf-train
 #SBATCH --account=dslab
-#SBATCH --qos=ymerzouki-dslab
 #SBATCH --time=12:00:00
 #SBATCH --mem=24G
 #SBATCH --output=regularize_data_%j.out
