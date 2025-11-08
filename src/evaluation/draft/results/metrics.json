@@ -1,0 +1,18 @@
+{
+  "palette_count_regions": 1.0,
+  "small_area_color_fraction": 0.21190864860119007,
+  "edge_density": 0.7695307736793704,
+  "num_contours": 1.0,
+  "largest_contour_share": 0.9438529283335605,
+  "perimeter_to_area_mean": 0.8093069142628059,
+  "saliency_concentration": 0.25866923333936287,
+  "num_salient_blobs": 0.049787068367863944,
+  "saliency_centroid": 0.006153783633930284,
+  "delta_L": 0.9588891621510508,
+  "occupancy": 0.04448681614099613,
+  "centering_error": 0.7143992830340918,
+  "relative_stroke_median": 1.0,
+  "stroke_iqr_px": 0.01831563888873418,
+  "overall_score": 0.5560928750309254,
+  "EasyReadScore": 0.5695033036788768
+}
