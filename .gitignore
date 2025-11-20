@@ -13,7 +13,11 @@ data/*
 
 venv/*
 
-#log and error files
+# Wandb
+wandb/
+
+#log, png and error files
 *.log
 *.out
 *.err
+*.png

@@ -72,20 +72,19 @@ class FullDataset(Dataset):
             fn = os.path.basename(fn)
 
             # caption text
-            text = row.get("text") or row.get("caption")
+            # caption text — now prioritizing 'title'
+            text = row.get("title")
             if not text:
-                # synthesize from title/keywords if missing
-                title = row.get("title") or ""
-                kws = _as_list(row.get("keywords"))
-                kws = [k for k in kws if k and k != title][:7]
-                if title and kws:
-                    text = f"{title}, {', '.join(kws)}"
-                elif title:
-                    text = title
-                elif kws:
-                    text = ', '.join(kws)
-                else:
-                    raise ValueError(f"Cannot create caption for image {fn}: no text, title, or keywords found")
+                # fallback to text, caption, or keywords if title missing
+                text = row.get("text") or row.get("caption")
+                if not text:
+                    kws = _as_list(row.get("keywords"))
+                    kws = [k for k in kws if k][:7]
+                    if kws:
+                        text = ', '.join(kws)
+                    else:
+                        raise ValueError(f"Cannot create caption for image {fn}: no title, text, caption, or keywords found")
+
 
             # Prepend instance token to the caption
             text = f"{self.instance_token} {text}"

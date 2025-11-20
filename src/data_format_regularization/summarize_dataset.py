@@ -1,138 +1,91 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Summarize training_data:
+Fast summary for training_data focused on prompts (no filesystem checks):
+
 - totals and per-dataset counts
-- image sizes (WxH) and counts (overall and per dataset)
-- file extensions, licenses, categories (top N)
-- sanity checks: missing files, unreadable images, duplicate ids/filenames
+- licenses, categories (top N)
+- prompt stats: how many entries have prompts, per-dataset breakdown,
+  prompt length buckets, and prompt_model counts
+- light sanity checks: duplicate image_file names, duplicate ids/filenames
+
+NOTE: This version does NOT touch the image files at all (no exists(), no sizes),
+so it should be very fast even for hundreds of thousands of entries.
 """
 
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
-# -------- Paths (same layout as your main script) --------
+# -------- Paths --------
 DATA_DIR = (Path(__file__).resolve().parent / "../../data").resolve()
 TRAINING_DIR = DATA_DIR / "training_data"
 IMAGES_DIR = TRAINING_DIR / "images"
 META_JSON = TRAINING_DIR / "metadata.json"
 
-# -------- Optional: lightweight image size readers --------
-def _png_size(path: Path) -> Optional[Tuple[int, int]]:
-    # PNG: 8-byte signature + IHDR chunk: width/height at bytes 16..23
-    try:
-        with path.open("rb") as f:
-            sig = f.read(8)
-            if sig != b"\x89PNG\r\n\x1a\n":
-                return None
-            f.read(8)  # IHDR length+type
-            w = int.from_bytes(f.read(4), "big")
-            h = int.from_bytes(f.read(4), "big")
-            return w, h
-    except Exception:
-        return None
-
-def _jpeg_size(path: Path) -> Optional[Tuple[int, int]]:
-    # Minimal JPEG SOF scanner
-    try:
-        with path.open("rb") as f:
-            data = f.read()
-        if not (data[:2] == b"\xff\xd8"):
-            return None
-        i = 2
-        while i < len(data):
-            if data[i] != 0xFF:
-                i += 1
-                continue
-            # skip fill bytes
-            while i < len(data) and data[i] == 0xFF:
-                i += 1
-            if i >= len(data):
-                break
-            marker = data[i]
-            i += 1
-            # standalone markers without length
-            if marker in (0xD8, 0xD9):  # SOI/EOI
-                continue
-            if i + 2 > len(data):
-                break
-            seglen = int.from_bytes(data[i:i+2], "big")
-            if seglen < 2:
-                break
-            if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
-                # SOF: [len][precision][height][width]...
-                if i + 5 < len(data):
-                    precision = data[i+2]
-                    h = int.from_bytes(data[i+3:i+5], "big")
-                    w = int.from_bytes(data[i+5:i+7], "big")
-                    return w, h
-                else:
-                    break
-            i += seglen
-        return None
-    except Exception:
-        return None
-
-def get_image_size(path: Path) -> Optional[Tuple[int, int]]:
-    ext = path.suffix.lower()
-    if ext == ".png":
-        sz = _png_size(path)
-        if sz:
-            return sz
-    if ext in (".jpg", ".jpeg"):
-        sz = _jpeg_size(path)
-        if sz:
-            return sz
-    # Fallback to Pillow if available
-    try:
-        from PIL import Image  # type: ignore
-        with Image.open(path) as im:
-            return im.size  # (w, h)
-    except Exception:
-        return None
 
 # -------- Helpers --------
 def human(n: int) -> str:
     return f"{n:,}"
 
+
 def top_n(counter: Counter, n: int = 20) -> List[Tuple[str, int]]:
     return counter.most_common(n)
+
+
+def bucket_prompt_length(length: int) -> str:
+    """Bucket prompt character lengths for coarse stats."""
+    if length == 0:
+        return "0"
+    if length <= 30:
+        return "1–30"
+    if length <= 60:
+        return "31–60"
+    if length <= 100:
+        return "61–100"
+    if length <= 200:
+        return "101–200"
+    return "200+"
+
 
 # -------- Main summary --------
 def main():
     if not META_JSON.exists():
         print(f"[ERROR] metadata.json not found at {META_JSON}")
         return
+
+    # We don't actually need IMAGES_DIR to exist for this summary,
+    # but we keep this check as a sanity note.
     if not IMAGES_DIR.exists():
-        print(f"[ERROR] images directory not found at {IMAGES_DIR}")
-        return
+        print(f"[WARN] images directory not found at {IMAGES_DIR} (not used in fast mode)")
 
     with META_JSON.open("r", encoding="utf-8") as f:
         meta: List[Dict] = json.load(f)
 
     total_meta = len(meta)
     print("=" * 70)
-    print("TRAINING DATA SUMMARY")
+    print("TRAINING DATA SUMMARY (SUPER-FAST, PROMPT-FOCUSED, NO FS I/O)")
     print("=" * 70)
     print(f"[INFO] Metadata entries: {human(total_meta)}")
-    print(f"[INFO] Images dir:        {IMAGES_DIR}")
+    print(f"[INFO] Images dir (for reference only): {IMAGES_DIR}")
 
     # Counters
     by_dataset = Counter()
-    by_size_overall = Counter()
-    by_size_per_dataset: Dict[str, Counter] = defaultdict(Counter)
-    by_ext = Counter()
     by_license = Counter()
     categories_counter = Counter()
 
-    # Sanity
-    missing_files = []
-    unreadable = []
+    # Prompt-related counters
+    prompts_present = 0
+    prompts_missing = 0
+    prompts_by_dataset = Counter()
+    no_prompt_by_dataset = Counter()
+    prompt_length_buckets = Counter()
+    prompt_model_counter = Counter()
+
+    # Sanity / diagnostics (metadata-only)
     duplicate_filenames = Counter()
     duplicate_ids = Counter()
-
     seen_filenames = set()
     seen_ids_per_dataset: Dict[str, set] = defaultdict(set)
 
@@ -148,32 +101,28 @@ def main():
         if isinstance(cats, list):
             categories_counter.update(cats)
 
-        if img is None:
-            continue
-        p = IMAGES_DIR / img
-        if not p.exists():
-            missing_files.append(str(p))
-            continue
+        # ----- prompt stats -----
+        prompt = e.get("prompt")
+        if isinstance(prompt, str) and prompt.strip():
+            prompts_present += 1
+            prompts_by_dataset[ds] += 1
+            length = len(prompt.strip())
+            prompt_length_buckets[bucket_prompt_length(length)] += 1
 
-        ext = p.suffix.lower() or "<noext>"
-        by_ext[ext] += 1
-
-        # Sizes
-        size = get_image_size(p)
-        if size is None:
-            unreadable.append(str(p))
+            pmodel = e.get("prompt_model")
+            if isinstance(pmodel, str) and pmodel.strip():
+                prompt_model_counter[pmodel.strip()] += 1
         else:
-            w, h = size
-            key = f"{w}x{h}"
-            by_size_overall[key] += 1
-            by_size_per_dataset[ds][key] += 1
+            prompts_missing += 1
+            no_prompt_by_dataset[ds] += 1
 
-        # Duplicates
-        fname = p.name
-        if fname in seen_filenames:
-            duplicate_filenames[fname] += 1
-        else:
-            seen_filenames.add(fname)
+        # ----- metadata-only duplicate checks -----
+        if img is not None:
+            # Check duplicate filenames based purely on the 'image_file' string
+            if img in seen_filenames:
+                duplicate_filenames[img] += 1
+            else:
+                seen_filenames.add(img)
 
         if iid is not None:
             if iid in seen_ids_per_dataset[ds]:
@@ -184,27 +133,15 @@ def main():
     # -------- Print summary --------
     print("\n--- Totals ---")
     print(f"Total entries in metadata: {human(total_meta)}")
-    print(f"Existing image files:      {human(total_meta - len(missing_files))}")
-    print(f"Missing files:             {human(len(missing_files))}")
-    print(f"Unreadable images:         {human(len(unreadable))}")
+    print(f"Entries with prompts:      {human(prompts_present)}")
+    print(f"Entries without prompts:   {human(prompts_missing)}")
+    if total_meta > 0:
+        pct = (prompts_present / total_meta) * 100.0
+        print(f"Share with prompts:        {pct:.2f}%")
 
-    print("\n--- By dataset ---")
+    print("\n--- By dataset (entries) ---")
     for ds, cnt in sorted(by_dataset.items()):
         print(f"{ds:15s}: {human(cnt)}")
-
-    print("\n--- Image sizes (overall) ---")
-    for size, cnt in top_n(by_size_overall, n=len(by_size_overall)):
-        print(f"{size:>9s}: {human(cnt)}")
-
-    print("\n--- Image sizes per dataset (top 10 per dataset) ---")
-    for ds in sorted(by_size_per_dataset.keys()):
-        print(f"[{ds}]")
-        for size, cnt in top_n(by_size_per_dataset[ds], n=10):
-            print(f"  {size:>9s}: {human(cnt)}")
-
-    print("\n--- File extensions ---")
-    for ext, cnt in sorted(by_ext.items(), key=lambda x: (-x[1], x[0])):
-        print(f"{ext:8s}: {human(cnt)}")
 
     print("\n--- Licenses ---")
     for lic, cnt in sorted(by_license.items(), key=lambda x: (-x[1], x[0])):
@@ -214,28 +151,41 @@ def main():
     for cat, cnt in top_n(categories_counter, n=20):
         print(f"{cat}: {human(cnt)}")
 
-    # Sanity / diagnostics
-    if missing_files:
-        print("\n[WARN] Missing files (showing up to 10):")
-        for p in missing_files[:10]:
-            print(f"  - {p}")
-        if len(missing_files) > 10:
-            print(f"  ... and {len(missing_files) - 10} more")
+    # -------- Prompt statistics --------
+    print("\n--- Prompts by dataset ---")
+    all_ds = sorted(by_dataset.keys())
+    for ds in all_ds:
+        with_p = prompts_by_dataset.get(ds, 0)
+        without_p = no_prompt_by_dataset.get(ds, 0)
+        total_ds = by_dataset.get(ds, 0)
+        if total_ds > 0:
+            pct_ds = (with_p / total_ds) * 100.0
+        else:
+            pct_ds = 0.0
+        print(
+            f"{ds:15s}: with={human(with_p):>6s}, "
+            f"without={human(without_p):>6s}, "
+            f"total={human(total_ds):>6s}, "
+            f"{pct_ds:6.2f}% with"
+        )
 
-    if unreadable:
-        print("\n[WARN] Unreadable images (showing up to 10):")
-        for p in unreadable[:10]:
-            print(f"  - {p}")
-        if len(unreadable) > 10:
-            print(f"  ... and {len(unreadable) - 10} more")
+    print("\nPrompt length buckets (characters):")
+    for bucket, cnt in sorted(prompt_length_buckets.items(), key=lambda x: x[0]):
+        print(f"{bucket:>7s}: {human(cnt)}")
 
+    if prompt_model_counter:
+        print("\nPrompt models (how prompts were generated):")
+        for model_name, cnt in top_n(prompt_model_counter, n=len(prompt_model_counter)):
+            print(f"{model_name}: {human(cnt)}")
+
+    # Sanity / diagnostics (metadata-only duplicates)
     if duplicate_filenames:
-        print("\n[INFO] Duplicate image filenames (same name appears multiple times):")
+        print("\n[INFO] Duplicate image_file names in metadata (same string appears multiple times):")
         for fn, extra in top_n(duplicate_filenames, n=10):
             print(f"  {fn}: +{extra}")
 
     if duplicate_ids:
-        print("\n[INFO] Duplicate IDs within a dataset (same (dataset,id) appears multiple times):")
+        print("\n[INFO] Duplicate IDs within a dataset in metadata (same (dataset,id) appears multiple times):")
         shown = 0
         for (ds, iid), extra in duplicate_ids.items():
             print(f"  ({ds}, id={iid}): +{extra}")
@@ -247,7 +197,7 @@ def main():
                 break
 
     print("\n" + "=" * 70)
-    print("[DONE] Summary complete.")
+    print("[DONE] Super-fast prompt-focused summary complete.")
     print("=" * 70)
 
 

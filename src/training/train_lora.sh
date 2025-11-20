@@ -25,21 +25,21 @@ echo "Starting training..."
 python train_lora.py \
     --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
     --data_dir="../../data/training_data" \
-    --output_dir="../../lora_output" \
+    --output_dir="../../lora_output_long_run_2" \
     --resolution=256 \
     --train_batch_size=16 \
-    --gradient_accumulation_steps=16 \
-    --num_train_epochs=100 \
+    --gradient_accumulation_steps=1 \
+    --num_train_epochs=50 \
     --learning_rate=1e-4 \
-    --lora_rank=16 \
-    --lora_alpha=16 \
+    --lora_rank=10 \
+    --lora_alpha=10 \
     --mixed_precision="fp16" \
     --seed=42 \
     --logging_steps=50 \
-    --save_steps=500 \
+    --save_steps=2000 \
     --dataloader_num_workers=2 \
     --wandb_entity="dsl-25" \
     --wandb_project="dsl" \
-    --wandb_run_name="long run"
+    --wandb_run_name="long run 2"
 
 echo "Training complete!"
