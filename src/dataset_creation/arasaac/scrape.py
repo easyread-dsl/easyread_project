@@ -11,10 +11,22 @@ from typing import Iterable, List, Optional, Dict, Any, Tuple
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
-API_BASE = "https://api.arasaac.org/api"
+API_BASE = "https://api.arasaac.org/v1"
 STATIC_BASE = "https://static.arasaac.org/pictograms"
 LANG = "en"
 OUT_DIR = (Path(__file__).resolve().parent / "../../../data/arasaac").resolve()
+
+# Customization options for pictogram variations
+SKIN_COLORS = ["white", "black", "assian", "mulatto", "aztec"]
+HAIR_COLORS = ["blonde", "brown", "darkBrown", "gray", "darkGray", "red", "black"]
+BACKGROUND_COLORS = {
+    "red": "FF0000",
+    "green": "00FF00",
+    "blue": "0000FF",
+    "yellow": "FFFF00",
+    "black": "000000",
+    "white": "FFFFFF",
+}
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; dataset-downloader/1.0)",
@@ -129,57 +141,81 @@ def probe_ids_by_head(s: requests.Session, lo: int, hi: int, step: int = 1) -> L
     return found
 
 # ---------- File download ----------
-def candidate_file_urls(pid: int) -> Iterable[str]:
-    yield f"{STATIC_BASE}/{pid}/{pid}.svg"
-    for size in (700, 600, 512, 500, 400, 300, 256):
-        yield f"{STATIC_BASE}/{pid}/{pid}_{size}.png"
-    for size in (700, 600, 512, 500, 400, 300, 256):
-        yield f"{STATIC_BASE}/{pid}/color/{size}.png"
-        yield f"{STATIC_BASE}/{pid}/black/{size}.png"
+# Global counter to rotate through variations
+_variation_counter = 0
 
-def already_have(out: Path, pid: int) -> Optional[Path]:
-    # Return the path we already have (first match)
-    p = out / f"{pid}.svg"
-    if p.exists():
-        return p
-    p = out / f"{pid}.png"
-    if p.exists():
-        return p
-    for size in (700, 600, 512, 500, 400, 300, 256):
-        p = out / f"{pid}_{size}.png"
-        if p.exists():
-            return p
-    return None
-
-def download_one(s: requests.Session, pid: int, out: Path) -> Tuple[bool, Optional[Path], Optional[str]]:
+def get_next_variation_params(pid: int) -> Tuple[Dict[str, Any], str, str, str, str]:
     """
-    Returns: (ok, saved_path, source_url)
+    Get the next variation parameters by rotating through each attribute independently.
+    Each attribute cycles through its list at different rates for better diversity.
+    Returns: (params_dict, skin_color, hair_color, bg_color_name, bg_color_hex)
     """
-    have = already_have(out, pid)
-    if have:
-        return True, have, None
+    global _variation_counter
 
-    for url in candidate_file_urls(pid):
-        try:
-            r = s.get(url, timeout=45, stream=True)
-            if r.status_code == 200 and int(r.headers.get("Content-Length", "1")) > 0:
-                # Decide filename
-                if url.endswith(".svg"):
-                    dest = out / f"{pid}.svg"
-                else:
-                    # Keep the CDN file name (e.g., 1234_300.png or color/size.png won’t have pid name),
-                    # but normalize to a simple pid.png for single PNG saves to keep paths stable.
-                    # Prefer simple pid.png if it doesn’t exist; else fall back to original name.
-                    simple = out / f"{pid}.png"
-                    dest = simple if not simple.exists() else out / Path(url).name
-                with open(dest, "wb") as fh:
-                    for chunk in r.iter_content(1 << 14):
-                        if chunk:
-                            fh.write(chunk)
-                return True, dest, url
-        except Exception:
-            pass
-    return False, None, None
+    # Rotate each attribute independently - they cycle at different rates
+    skin_idx = _variation_counter % len(SKIN_COLORS)
+    hair_idx = _variation_counter % len(HAIR_COLORS)
+    bg_idx = _variation_counter % len(BACKGROUND_COLORS)
+
+    skin = SKIN_COLORS[skin_idx]
+    hair = HAIR_COLORS[hair_idx]
+    bg_name = list(BACKGROUND_COLORS.keys())[bg_idx]
+    bg_hex = BACKGROUND_COLORS[bg_name]
+
+    params = {
+        "skin": skin,
+        "hair": hair,
+        "backgroundColor": bg_name,  # API expects color name, not hex
+        "resolution": 500,
+    }
+
+    _variation_counter += 1
+    return params, skin, hair, bg_name, bg_hex
+
+def download_one(s: requests.Session, pid: int, out: Path) -> Tuple[bool, Optional[Path], Dict[str, Any]]:
+    """
+    Downloads one variation of a pictogram.
+    Returns: (ok, saved_path, variation_metadata)
+    """
+    # Check if already downloaded
+    filename = f"{pid}.png"
+    dest = out / filename
+
+    if dest.exists():
+        # Try to infer variation from filename or just mark as existing
+        variation_meta = {
+            "file": filename,
+            "skin": None,
+            "hair": None,
+            "background_color": None,
+        }
+        return True, dest, variation_meta
+
+    # Get next variation parameters
+    params, skin, hair, bg_name, bg_hex = get_next_variation_params(pid)
+
+    # Build API URL
+    url = f"{API_BASE}/pictograms/{pid}"
+
+    try:
+        r = s.get(url, params=params, timeout=45, stream=True)
+        if r.status_code == 200:
+            with open(dest, "wb") as fh:
+                for chunk in r.iter_content(1 << 14):
+                    if chunk:
+                        fh.write(chunk)
+
+            variation_meta = {
+                "file": filename,
+                "skin": skin,
+                "hair": hair,
+                "background_color": bg_hex,
+                "background_color_name": bg_name,
+            }
+            return True, dest, variation_meta
+        return False, None, {}
+    except Exception:
+        return False, None, {}
 
 # ---------- Metadata ----------
 def _norm_text(x: Any) -> Optional[str]:
@@ -275,13 +311,14 @@ def save_metadata(meta_json_path: Path, meta_csv_path: Path, meta_map: Dict[int,
     # JSON
     meta_json_path.write_text(json.dumps(meta_map, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # CSV
+    # CSV - One row per pictogram with variation details
     fields = [
         "id", "title", "keywords", "categories", "created", "updated",
-        "schematic", "hair", "skin", "license", "image_file", "image_url", "api_lang"
+        "schematic", "image_file", "skin_color", "hair_color", "background_color",
+        "license", "api_lang"
     ]
     with meta_csv_path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
+        w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore')
         w.writeheader()
         for pid in sorted(meta_map.keys()):
             row = dict(meta_map[pid])
@@ -340,6 +377,7 @@ def main():
             meta_map = {}
 
     ok = fail = 0
+
     for i, pid in enumerate(ids, 1):
         # fetch / update metadata first, so we always record something even if download fails
         if pid not in meta_map:
@@ -351,22 +389,25 @@ def main():
             meta_map[pid].setdefault("created", None)
             meta_map[pid].setdefault("updated", None)
             meta_map[pid].setdefault("schematic", None)
-            meta_map[pid].setdefault("hair", None)
-            meta_map[pid].setdefault("skin", None)
             meta_map[pid].setdefault("license", "CC BY-NC-SA 4.0 — © ARASAAC (Gobierno de Aragón), https://arasaac.org")
             meta_map[pid].setdefault("image_file", None)
-            meta_map[pid].setdefault("image_url", None)
+            meta_map[pid].setdefault("skin_color", None)
+            meta_map[pid].setdefault("hair_color", None)
+            meta_map[pid].setdefault("background_color", None)
 
-        ok_dl, saved_path, source_url = download_one(s, pid, out_dir)
+        ok_dl, saved_path, variation_meta = download_one(s, pid, out_dir)
+
         if ok_dl:
             ok += 1
-            # record actual file path + url
+            # record file path and variation details
             if saved_path:
                 meta_map[pid]["image_file"] = str(saved_path.relative_to(out_dir)).replace("\\", "/")
-            if source_url:
-                meta_map[pid]["image_url"] = source_url
+            meta_map[pid]["skin_color"] = variation_meta.get("skin")
+            meta_map[pid]["hair_color"] = variation_meta.get("hair")
+            meta_map[pid]["background_color"] = variation_meta.get("background_color_name") or variation_meta.get("background_color")
+
             if ok % 50 == 0:
-                print(f"[OK] {ok:,} files saved (last ID: {pid})")
+                print(f"[OK] {ok:,} pictograms saved (last ID: {pid})")
         else:
             fail += 1
             print(f"[FAIL] ID {pid}")
@@ -380,7 +421,7 @@ def main():
     # final save
     save_metadata(meta_json_path, meta_csv_path, meta_map)
 
-    print(f"[DONE] Saved {ok:,} pictograms to {out_dir}")
+    print(f"\n[DONE] Saved {ok:,} pictograms to {out_dir}")
     if fail:
         print(f"[WARN] {fail:,} pictograms could not be downloaded.")
     print(f"[DONE] Metadata -> {meta_json_path} and {meta_csv_path}")

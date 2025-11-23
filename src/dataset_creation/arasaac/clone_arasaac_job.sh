@@ -4,7 +4,7 @@
 #SBATCH --error=clone_arasaac.err
 #SBATCH --partition=inf-train
 #SBATCH --time=12:00:00
-#SBATCH --account=dslab
+#SBATCH --account=dslab_jobs
 
 # Parse command line arguments for output directory
 OUTPUT_DIR=""
