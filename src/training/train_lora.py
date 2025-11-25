@@ -89,6 +89,14 @@ class FullDataset(Dataset):
             # Prepend instance token to the caption
             text = f"{self.instance_token} {text}"
 
+            # Add color attributes if all three are present
+            bg_color = row.get("background_color")
+            skin_color = row.get("skin_color")
+            hair_color = row.get("hair_color")
+
+            if bg_color and skin_color and hair_color:
+                text = f"{text}; background color: {bg_color}; skin color: {skin_color}; hair color: {hair_color}"
+
             # store normalized copy (preserve original fields too)
             nr = dict(row)
             nr["file_name"] = fn
