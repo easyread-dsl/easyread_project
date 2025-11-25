@@ -14,11 +14,23 @@ from PIL import Image
 from tqdm.auto import tqdm
 
 from diffusers import AutoencoderKL, DDPMScheduler, StableDiffusionPipeline, UNet2DConditionModel
-from transformers import CLIPTextModel, CLIPTokenizer
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
 from peft import LoraConfig, get_peft_model
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 import wandb
+
+import sys
+
+import csv
+
+CURRENT_DIR = Path(__file__).resolve().parent      
+SRC_ROOT = CURRENT_DIR.parent                      
+
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from evaluation.easyread_metrics import compute_easyread_score
 
 
 class FullDataset(Dataset):
@@ -71,20 +83,23 @@ class FullDataset(Dataset):
             # keep only the basename if a path was provided
             fn = os.path.basename(fn)
 
-            # caption text
-            # caption text — now prioritizing 'title'
-            text = row.get("title")
+            # caption text — NOW prioritizing 'prompt', then 'title'
+            text = row.get("prompt")
             if not text:
-                # fallback to text, caption, or keywords if title missing
+                text = row.get("title")
+            if not text:
+                # fallback to text, caption, or keywords if title/prompt missing
                 text = row.get("text") or row.get("caption")
                 if not text:
                     kws = _as_list(row.get("keywords"))
                     kws = [k for k in kws if k][:7]
                     if kws:
-                        text = ', '.join(kws)
+                        text = ", ".join(kws)
                     else:
-                        raise ValueError(f"Cannot create caption for image {fn}: no title, text, caption, or keywords found")
-
+                        raise ValueError(
+                            f"Cannot create caption for image {fn}: "
+                            f"no prompt, title, text, caption, or keywords found"
+                        )
 
             # Prepend instance token to the caption
             text = f"{self.instance_token} {text}"
@@ -139,7 +154,6 @@ class FullDataset(Dataset):
 
 
 
-
 def collate_fn(examples):
     """Collate function for dataloader."""
     pixel_values = torch.stack([example['pixel_values'] for example in examples])
@@ -159,6 +173,15 @@ def train(args):
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision
     )
+    
+
+    # Load CLIP model for text–image similarity during validation
+    clip_model_name = "openai/clip-vit-large-patch14"
+    print(f"Loading CLIP model: {clip_model_name}")
+    clip_model = CLIPModel.from_pretrained(clip_model_name).to(accelerator.device)
+    clip_processor = CLIPProcessor.from_pretrained(clip_model_name)
+    clip_model.eval()
+
 
     # Set seed for reproducibility
     if args.seed is not None:
@@ -422,30 +445,107 @@ def train(args):
                             resolution=args.resolution
                         )
 
-                        # Save validation images locally
+                        # Save validation images locally and compute EasyRead score
                         val_dir = os.path.join(args.output_dir, f"validation-{global_step}")
                         os.makedirs(val_dir, exist_ok=True)
+
+                        wandb_images = []
+                        easyread_scores = []
+                        per_image_stats = [] 
 
                         for prompt, image in validation_images:
                             # Clean prompt for filename (remove instance token and special chars)
                             clean_prompt = prompt.replace(args.instance_token, "").strip()
                             clean_prompt = "".join(c if c.isalnum() else "_" for c in clean_prompt)
+                            if not clean_prompt:
+                                clean_prompt = "prompt"
                             image_path = os.path.join(val_dir, f"{clean_prompt}.png")
                             image.save(image_path)
                             print(f"Saved validation image: {image_path}")
 
+                            # W&B image panel
+                            wandb_images.append(wandb.Image(image, caption=prompt))
+
+                            # EasyRead evaluation
+                            easyread_score = None
+                            try:
+                                easyread_score = float(compute_easyread_score(image_path))
+                                easyread_scores.append(easyread_score)
+                            except Exception as e:
+                                print(f"[EasyRead] Failed to compute score for {image_path}: {e}")
+
+                            # CLIP text–image similarity
+                            try:
+                                clip_inputs = clip_processor(
+                                    text=[prompt],
+                                    images=image,
+                                    return_tensors="pt",
+                                    padding=True,
+                                ).to(accelerator.device)
+
+                                with torch.no_grad():
+                                    clip_outputs = clip_model(**clip_inputs)
+                                    image_embeds = clip_outputs.image_embeds  # (1, d)
+                                    text_embeds = clip_outputs.text_embeds    # (1, d)
+
+                                    # Normalize and compute cosine similarity
+                                    image_embeds = image_embeds / image_embeds.norm(dim=-1, keepdim=True)
+                                    text_embeds = text_embeds / text_embeds.norm(dim=-1, keepdim=True)
+                                    clip_sim = (image_embeds * text_embeds).sum(dim=-1).item()
+                            except Exception as e:
+                                print(f"[CLIP] Failed to compute similarity for {image_path}: {e}")
+                                clip_sim = None
+
+                            # Store per-image stats (for CSV)
+                            per_image_stats.append({
+                                "global_step": global_step,
+                                "prompt": prompt,
+                                "clean_prompt": clean_prompt,
+                                "image_path": image_path,
+                                "easyread_score": easyread_score,
+                                "clip_similarity": clip_sim,
+                            })
+
+                        
+                        # Save per-image EasyRead + CLIP stats to CSV (append)
+                        if per_image_stats:
+                            csv_path = os.path.join(args.output_dir, "easyread_validation_scores.csv")
+                            file_exists = os.path.exists(csv_path)
+
+                            with open(csv_path, "a", newline="", encoding="utf-8") as f:
+                                writer = csv.DictWriter(
+                                    f,
+                                    fieldnames=[
+                                        "global_step",
+                                        "prompt",
+                                        "clean_prompt",
+                                        "image_path",
+                                        "easyread_score",
+                                        "clip_similarity",
+                                    ],
+                                )
+                                if not file_exists:
+                                    writer.writeheader()
+                                for row in per_image_stats:
+                                    writer.writerow(row)
+
+                            print(f"[EasyRead/CLIP] Appended {len(per_image_stats)} rows to {csv_path}")
+
                         # Log to W&B
                         if not args.no_wandb:
-                            wandb_images = [
-                                wandb.Image(image, caption=prompt)
-                                for prompt, image in validation_images
-                            ]
-                            wandb.log({
+                            log_payload = {
                                 "validation/images": wandb_images,
-                                "train/checkpoint_saved": global_step
-                            }, step=global_step)
+                                "train/checkpoint_saved": global_step,
+                            }
+
+                            if easyread_scores:
+                                avg_score = sum(easyread_scores) / len(easyread_scores)
+                                log_payload["easyread/avg_EasyReadScore"] = float(avg_score)
+
+                            wandb.log(log_payload, step=global_step)
 
                         print(f"{'='*50}\n")
+
 
             if global_step >= args.max_train_steps:
                 break

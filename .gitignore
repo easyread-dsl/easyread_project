@@ -1,5 +1,8 @@
 # Ignore everything inside data/
 data/*
+results/*
+src/training/wandb/*
+*/__pycache__/*
 
 # keep folders of datasets
 !data/.gitkeep
@@ -21,3 +24,7 @@ wandb/
 *.out
 *.err
 *.png
+src/dataset_creation/arasaac/__pycache__/scrape.cpython-310.pyc
+src/training/wandb/latest-run
+src/training/wandb/latest-run
+src/evaluation/__pycache__/easyread_metrics.cpython-310.pyc

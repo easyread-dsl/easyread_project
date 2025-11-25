@@ -43,8 +43,8 @@ python train_lora.py \
     --gradient_accumulation_steps=1 \
     --num_train_epochs=50 \
     --learning_rate=1e-4 \
-    --lora_rank=16 \
-    --lora_alpha=24 \
+    --lora_rank=8 \
+    --lora_alpha=10 \
     --mixed_precision="fp16" \
     --seed=42 \
     --logging_steps=50 \
