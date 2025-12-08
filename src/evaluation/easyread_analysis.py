@@ -12,20 +12,28 @@ Then:
   - print summary statistics of the scores
   - save plots under training_data/analysis/
 """
-
+import sys
 import os
 import json
 import csv
+import tempfile
 from pathlib import Path
 from collections import defaultdict
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from easyread_metrics import (
-    compute_metrics,
-    compute_easyread_components_from_raw,
-)
+# Point to the repo root
+EASYREAD_ROOT = Path("/work/courses/dslab/team4/easyread_project")
+
+# Directory that contains easyread_metrics.py
+EVAL_DIR = EASYREAD_ROOT / "src" / "evaluation"
+
+# Make sure that directory is on sys.path
+sys.path.insert(0, str(EVAL_DIR))
+
+# Now this should work
+from easyread_metrics import compute_metrics, compute_easyread_components_from_raw
 
 DATA_ROOT = Path("/work/courses/dslab/team4/easyread_project/data").resolve()
 TRAINING_DIR = DATA_ROOT / "training_data"
@@ -33,6 +41,64 @@ IMAGES_DIR = TRAINING_DIR / "images"
 METADATA_JSON = TRAINING_DIR / "metadata.json"
 METADATA_CSV = TRAINING_DIR / "metadata.csv"
 ANALYSIS_DIR = TRAINING_DIR / "analysis"
+
+BATCH_SIZE = 50
+
+
+def atomic_json_dump(obj, path: Path) -> None:
+    """
+    Atomically write JSON to 'path' using a temporary file + os.replace.
+    Ensures 'path' is always either the old valid file or the new valid file.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=path.name + ".",
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def atomic_csv_write(rows, fieldnames, path: Path) -> None:
+    """
+    Atomically write CSV rows to 'path' using a temporary file + os.replace.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=path.name + ".",
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def load_metadata():
@@ -43,12 +109,19 @@ def load_metadata():
 
 
 def save_metadata(all_metadata):
-    with METADATA_JSON.open("w", encoding="utf-8") as f:
-        json.dump(all_metadata, f, ensure_ascii=False, indent=2)
+    """
+    Save metadata.json and metadata.csv atomically.
+    Killing the process in the middle of this function will not corrupt
+    the existing JSON/CSV; only the temp files are affected.
+    """
+    # 1) JSON (atomic)
+    atomic_json_dump(all_metadata, METADATA_JSON)
 
+    # If there's no metadata, nothing else to do.
     if not all_metadata:
         return
 
+    # 2) Determine CSV fieldnames
     fieldnames = set()
     for e in all_metadata:
         fieldnames.update(e.keys())
@@ -80,16 +153,18 @@ def save_metadata(all_metadata):
 
     ordered = preferred + [k for k in sorted(fieldnames) if k not in preferred]
 
-    with METADATA_CSV.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=ordered)
-        w.writeheader()
-        for e in all_metadata:
-            row = e.copy()
-            if isinstance(row.get("keywords"), list):
-                row["keywords"] = "|".join(map(str, row["keywords"]))
-            if isinstance(row.get("categories"), list):
-                row["categories"] = "|".join(map(str, row["categories"]))
-            w.writerow(row)
+    # Prepare rows, flattening list fields
+    csv_rows = []
+    for e in all_metadata:
+        row = e.copy()
+        if isinstance(row.get("keywords"), list):
+            row["keywords"] = "|".join(map(str, row["keywords"]))
+        if isinstance(row.get("categories"), list):
+            row["categories"] = "|".join(map(str, row["categories"]))
+        csv_rows.append(row)
+
+    # 3) CSV (atomic)
+    atomic_csv_write(csv_rows, ordered, METADATA_CSV)
 
 
 def analyze_scores(all_metadata):
@@ -198,6 +273,7 @@ def process_dataset():
     updated = 0
     skipped_missing_img = 0
     skipped_existing = 0
+    updated_since_last_save = 0
 
     for i, entry in enumerate(metadata, start=1):
         img_name = entry.get("image_file")
@@ -251,15 +327,24 @@ def process_dataset():
         entry["easyread_score"] = float(components["easyread_score"])
 
         updated += 1
+        updated_since_last_save += 1
+
+        if updated_since_last_save >= BATCH_SIZE:
+            print(f"\n[INFO] Processed {updated_since_last_save} new entries, saving batch...")
+            save_metadata(metadata)
+            print(f"[INFO] Saved batch to:\n  {METADATA_JSON}\n  {METADATA_CSV}\n")
+            updated_since_last_save = 0
+
+    if updated_since_last_save > 0:
+        print(f"\n[INFO] Final batch of {updated_since_last_save} entries, saving...")
+        save_metadata(metadata)
+        print(f"[INFO] Saved final batch to:\n  {METADATA_JSON}\n  {METADATA_CSV}\n")
 
     print("\n[SUMMARY]")
     print(f"  Total entries:           {total}")
     print(f"  Updated with EasyRead:   {updated}")
     print(f"  Skipped (missing image): {skipped_missing_img}")
     print(f"  Skipped (already had):   {skipped_existing}")
-
-    save_metadata(metadata)
-    print(f"\n[OK] Saved updated metadata to:\n  {METADATA_JSON}\n  {METADATA_CSV}")
 
     analyze_scores(metadata)
 

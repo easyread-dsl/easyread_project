@@ -541,10 +541,12 @@ def normalize_metrics(raw):
     t = x / 0.15
     norm["perimeter_to_area_mean"] = math.exp(-2.0 * max(t, 0.0))
 
-    # Saliency
-    norm["saliency_concentration"] = 1 - math.exp(
-        -1 * max(raw["saliency"]["saliency_concentration"], 0.0)
-    )
+    # --------- Saliency ----------
+    
+    s = max(raw["saliency"]["saliency_concentration"], 0.0)
+    SALIENCY_ALPHA = 4.0  # was 1.0
+    norm["saliency_concentration"] = 1.0 - math.exp(-SALIENCY_ALPHA * s)
+
     norm["num_salient_blobs"] = math.exp(
         -2.0 * max((raw["saliency"]["num_salient_blobs"] - 1) / 2.0, 0.0)
     )
@@ -561,11 +563,18 @@ def normalize_metrics(raw):
     cenerr = raw["centering_occupancy"]["centering_error"]
     norm["centering_error"] = math.exp(-3.0 * max(cenerr / 0.5, 0.0))
 
-    # Stroke
+     # --------- Stroke (more spread) ----------
     rel = raw["stroke"]["relative_stroke_median"]
+    # heuristic: ideal around ~1.5% of height, sigma ~0.006 gives a
+    # sharper drop so deviations matter more
+    STROKE_IDEAL = 0.015
+    STROKE_SIGMA = 0.006
+    STROKE_SHARPNESS = 2.0  # >1 makes the peak narrower → more spread of scores
+
     norm["relative_stroke_median"] = math.exp(
-        -((rel - 0.012) ** 2) / (2 * 0.004 ** 2)
+        -STROKE_SHARPNESS * ((rel - STROKE_IDEAL) ** 2) / (2.0 * STROKE_SIGMA ** 2)
     )
+
     iqr = raw["stroke"]["stroke_iqr_px"]
     norm["stroke_iqr_px"] = math.exp(-2.0 * max(iqr / 2.0, 0.0))
 
@@ -584,19 +593,26 @@ def compute_edge_score_from_raw(raw_metrics):
 
 def compute_saliency_score_from_raw(raw_metrics):
     sal_conc = float(raw_metrics["saliency"]["saliency_concentration"])
-    return 1.0 - math.exp(-1.0 * max(sal_conc, 0.0))
+    SALIENCY_ALPHA = 4.0  # keep consistent with normalize_metrics
+    s = max(sal_conc, 0.0)
+    return 1.0 - math.exp(-SALIENCY_ALPHA * s)
 
-def compute_contrast_score_from_raw(raw_metrics):
-    delta_L = float(raw_metrics["contrast"]["delta_L"])
-    return 1.0 - math.exp(-3.0 * max(delta_L / 120.0, 0.0))
 
 def compute_stroke_score_from_raw(raw_metrics):
     rel_stroke = float(raw_metrics["stroke"]["relative_stroke_median"])
-    return math.exp(-((rel_stroke - 0.012) ** 2) / (2.0 * 0.004 ** 2))
+    STROKE_IDEAL = 0.016  # same as in normalize_metrics
+    STROKE_SIGMA = 0.010
+    return math.exp(-((rel_stroke - STROKE_IDEAL) ** 2) / (2.0 * STROKE_SIGMA ** 2))
+
 
 def compute_centering_score_from_raw(raw_metrics):
     centering_error = float(raw_metrics["centering_occupancy"]["centering_error"])
     return math.exp(-3.0 * max(centering_error / 0.5, 0.0))
+
+
+def compute_contrast_score_from_raw(raw_metrics): 
+    delta_L = float(raw_metrics["contrast"]["delta_L"]) 
+    return 1.0 - math.exp(-3.0 * max(delta_L / 120.0, 0.0))
 
 def compute_easyread_components_from_raw(raw_metrics):
     palette_score = compute_palette_score_from_raw(raw_metrics)
