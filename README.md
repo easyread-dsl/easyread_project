@@ -284,3 +284,7 @@ After training:
 - LoRA: https://arxiv.org/abs/2106.09685
 - Diffusers: https://github.com/huggingface/diffusers
 - PEFT: https://github.com/huggingface/peft
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

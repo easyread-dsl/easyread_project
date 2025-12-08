@@ -7,6 +7,11 @@ from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 from peft import PeftModel
 from transformers import CLIPProcessor, CLIPModel
 import os
+import sys
+
+# Add src directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from evaluation.easyread_metrics import compute_easyread_score
 
 
 def load_pipeline(base_model_path, lora_weights_path=None, device="cuda"):
@@ -239,6 +244,11 @@ def main():
         default="openai/clip-vit-base-patch32",
         help="CLIP model to use for similarity scoring"
     )
+    parser.add_argument(
+        "--compute_easyread_score",
+        action="store_true",
+        help="Compute EasyRead score for the generated image (palette, edges, saliency, etc.)"
+    )
 
     args = parser.parse_args()
 
@@ -300,6 +310,14 @@ def main():
 
         image.save(output_path)
         print(f"Saved to: {output_path}")
+
+        # Calculate EasyRead score if enabled
+        if args.compute_easyread_score:
+            try:
+                easyread_score = compute_easyread_score(output_path)
+                print(f"EasyRead Score: {easyread_score:.3f}")
+            except Exception as e:
+                print(f"Failed to compute EasyRead score: {e}")
 
     print("\nGeneration complete!")
 
