@@ -21,7 +21,7 @@ from typing import Dict, List, Any, Tuple
 import os
 
 # ------------------------- Base paths -------------------------
-DATA_DIR = (Path(__file__).resolve().parent / "../../data").resolve()
+DATA_DIR = Path("/mnt/data2")
 TRAINING_DIR = DATA_DIR / "training_data_arsaac"
 
 # Dataset source directories
@@ -183,6 +183,9 @@ def process_arasaac(
                 "keywords": keywords,
                 "categories": categories,
                 "license": meta.get("license", "CC BY-NC-SA 4.0"),
+                "skin_color": meta.get("skin_color"),
+                "hair_color": meta.get("hair_color"),
+                "background_color": meta.get("background_color"),
             }
             processed_data.append(entry)
             existing_keys.add(key)
@@ -436,7 +439,7 @@ def save_metadata_with_backup(all_metadata: List[Dict[str, Any]]):
 
     # CSV
     if all_metadata:
-        fieldnames = ["dataset", "image_file", "id", "title", "keywords", "categories", "license"]
+        fieldnames = ["dataset", "image_file", "id", "title", "keywords", "categories", "license", "skin_color", "hair_color", "background_color"]
         with open(csv_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
