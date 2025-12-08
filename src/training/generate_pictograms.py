@@ -5,6 +5,7 @@ import argparse
 import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 from peft import PeftModel
+from transformers import CLIPProcessor, CLIPModel
 import os
 
 
@@ -42,6 +43,61 @@ def load_pipeline(base_model_path, lora_weights_path=None, device="cuda"):
     pipeline.enable_attention_slicing()  # Memory optimization
 
     return pipeline
+
+
+def load_clip_model(model_name="openai/clip-vit-base-patch32", device="cuda"):
+    """
+    Load CLIP model for similarity scoring.
+
+    Args:
+        model_name: CLIP model to use
+        device: Device to load model on
+
+    Returns:
+        Tuple of (model, processor)
+    """
+    print(f"Loading CLIP model {model_name} for similarity scoring...")
+    model = CLIPModel.from_pretrained(model_name)
+    processor = CLIPProcessor.from_pretrained(model_name)
+    model = model.to(device)
+    model.eval()
+    return model, processor
+
+
+def calculate_clip_similarity(image, text, clip_model, clip_processor, device="cuda"):
+    """
+    Calculate CLIP similarity score between image and text.
+
+    Args:
+        image: PIL Image
+        text: Text prompt (without instance token)
+        clip_model: Loaded CLIP model
+        clip_processor: Loaded CLIP processor
+        device: Device to use
+
+    Returns:
+        Similarity score (0-100)
+    """
+    with torch.no_grad():
+        # Process inputs
+        inputs = clip_processor(
+            text=[text],
+            images=image,
+            return_tensors="pt",
+            padding=True
+        )
+
+        # Move to device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        # Get features
+        outputs = clip_model(**inputs)
+
+        # Calculate cosine similarity
+        logits_per_image = outputs.logits_per_image
+        similarity = logits_per_image.item()
+
+    return similarity
 
 
 def generate_pictogram(
@@ -172,6 +228,17 @@ def main():
         default=None,
         help="Instance token to prepend to prompt (e.g., 'sks' for LoRA fine-tuned models)"
     )
+    parser.add_argument(
+        "--compute_clip_score",
+        action="store_true",
+        help="Compute CLIP similarity score between prompt and generated image"
+    )
+    parser.add_argument(
+        "--clip_model",
+        type=str,
+        default="openai/clip-vit-base-patch32",
+        help="CLIP model to use for similarity scoring"
+    )
 
     args = parser.parse_args()
 
@@ -181,6 +248,12 @@ def main():
         args.lora_weights,
         args.device
     )
+
+    # Load CLIP model if similarity scoring is enabled
+    clip_model = None
+    clip_processor = None
+    if args.compute_clip_score:
+        clip_model, clip_processor = load_clip_model(args.clip_model, args.device)
 
     # Prepare final prompt with instance token if provided
     final_prompt = f"{args.instance_token} {args.prompt}" if args.instance_token else args.prompt
@@ -206,6 +279,17 @@ def main():
             seed,
             args.instance_token
         )
+
+        # Calculate CLIP similarity if enabled
+        if args.compute_clip_score:
+            clip_score = calculate_clip_similarity(
+                image,
+                args.prompt,  # Use original prompt without instance token
+                clip_model,
+                clip_processor,
+                args.device
+            )
+            print(f"CLIP Similarity Score: {clip_score:.2f}")
 
         # Save image
         if args.num_images == 1:

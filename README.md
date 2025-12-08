@@ -117,13 +117,24 @@ python generate_pictograms.py \
 
 ```bash
 python generate_pictograms.py \
-    --lora_weights="./lora_output/final" \
-    --prompt="a teacher" \
-    --output="teacher.png" \
+    --lora_weights="/mnt/data2/easyread_project/results/lora_output_diverse_prompts_run4/checkpoint-37000" \
+    --prompt="a person on a rock with a blue shirt and a red hat; background color: yellow; skin color: black; hair color: blonde" \
+    --output="/mnt/data2/outputs/persononrock_general.png" \
     --num_images=4 \
     --seed=42 \
     --instance_token="sks"
 ```
+
+SKIN_COLORS = ["white", "black", "assian", "mulatto", "aztec"]
+HAIR_COLORS = ["blonde", "brown", "darkBrown", "gray", "darkGray", "red", "black"]
+BACKGROUND_COLORS = {
+    "red": "FF0000",
+    "green": "00FF00",
+    "blue": "0000FF",
+    "yellow": "FFFF00",
+    "black": "000000",
+    "white": "FFFFFF",
+}
 
 **Parameters:**
 - `--lora_weights`: Path to trained LoRA weights (use checkpoint or final)

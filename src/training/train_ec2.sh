@@ -7,7 +7,7 @@ set -e
 
 # Base directories (adjust PROJECT_ROOT to your EC2 path)
 PROJECT_ROOT="/mnt/data2/easyread_project"  # Change this to your EC2 project path
-BASE_OUTPUT_DIR="$PROJECT_ROOT/results/lora_output_arsaac_diverse"
+BASE_OUTPUT_DIR="$PROJECT_ROOT/results/lora_output_diverse_prompts_w_icon"
 
 # Create results directory if it doesn't exist
 mkdir -p "$PROJECT_ROOT/results"
@@ -39,7 +39,7 @@ accelerate launch \
     --mixed_precision=fp16 \
     train_lora.py \
     --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
-    --data_dir="/mnt/data2/training_data_arsaac" \
+    --data_dir="/mnt/data2/training_data_w_icon" \
     --output_dir="$OUTPUT_DIR" \
     --resolution=256 \
     --train_batch_size=16 \

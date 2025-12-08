@@ -82,27 +82,28 @@ class FullDataset(Dataset):
                 continue
             # keep only the basename if a path was provided
             fn = os.path.basename(fn)
-
-            # caption text — NOW prioritizing 'prompt', then 'title'
-            text = row.get("prompt")
+            # caption text
+            # caption text — now prioritizing 'prompt'
+            text = row.get('prompt')
+            title = row.get("title")
             if not text:
+                print("Fallback: title")
                 text = row.get("title")
-            if not text:
-                # fallback to text, caption, or keywords if title/prompt missing
-                text = row.get("text") or row.get("caption")
                 if not text:
-                    kws = _as_list(row.get("keywords"))
-                    kws = [k for k in kws if k][:7]
-                    if kws:
-                        text = ", ".join(kws)
-                    else:
-                        raise ValueError(
-                            f"Cannot create caption for image {fn}: "
-                            f"no prompt, title, text, caption, or keywords found"
-                        )
+                    print("Fallback: text")
+                    # fallback to text, caption, or keywords if title missing
+                    text = row.get("text") or row.get("caption")
+                    if not text:
+                        kws = _as_list(row.get("keywords"))
+                        kws = [k for k in kws if k][:7]
+                        if kws:
+                            text = ', '.join(kws)
+                        else:
+                            raise ValueError(f"Cannot create caption for image {fn}: no title, text, caption, or keywords found")
+
 
             # Prepend instance token to the caption
-            text = f"{self.instance_token} {text}"
+            text = f"{self.instance_token} {title}: {text}"
 
             # Add color attributes if all three are present
             bg_color = row.get("background_color")
@@ -111,6 +112,10 @@ class FullDataset(Dataset):
 
             if bg_color and skin_color and hair_color:
                 text = f"{text}; background color: {bg_color}; skin color: {skin_color}; hair color: {hair_color}"
+            else:
+                print("WARNING: no colors")
+
+            print(text)
 
             # store normalized copy (preserve original fields too)
             nr = dict(row)
