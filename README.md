@@ -26,6 +26,10 @@ pip install tqdm
 
 For GPU training, ensure you have CUDA installed.
 
+## Checkpoint
+
+Download our checkpoint (trained on LDS, openmoji and augmented ARASAAC) [here](https://huggingface.co/rllover123/easyread-dsl)
+
 ### Hardware Requirements
 
 - GPU: Minimum 12GB VRAM (16GB+ recommended)
