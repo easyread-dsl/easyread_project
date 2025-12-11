@@ -136,22 +136,25 @@ Training will save checkpoints to `./lora_output/checkpoint-{step}/` and final m
 ## File Structure
 
 ```
-pipeline/
-├── load_data.py              # Original data loading script
-├── prepare_dataset.py        # Data preparation for training
-├── train_lora.py            # LoRA training script
-├── train_config.sh          # Training configuration
-├── generate_pictograms.py   # Inference script
-├── README.md                # This file
-├── training_data/           # Prepared training data (created by prepare_dataset.py)
-│   ├── images/
-│   └── metadata.jsonl
-└── lora_output/             # Training outputs (created by train_lora.py)
-    ├── checkpoint-500/
-    ├── checkpoint-1000/
-    └── final/
+├── src/                                  # Source code
+│   ├── dataset_creation/                 # Dataset collection scripts
+│   │   ├── arasaac/                      # ARASAAC pictogram scraper
+│   │   ├── icon645/                      # Icon645 dataset scripts
+│   │   ├── lds/                          # LDS dataset scripts
+│   │   ├── openmoji/                     # OpenMoji dataset scripts
+│   │   └── quickdraw/                    # QuickDraw dataset scripts
+│   ├── data_format_regularization/       # Data preparation and formatting
+│   │   ├── prepare_dataset.py            # Prepare data for training
+│   │   ├── add_prompts.py                # Add prompts to dataset
+│   │   ├── summarize_dataset.py          # Dataset statistics
+│   │   └── regularize_data_job.sh        # Batch processing script
+│   ├── training/                         # Model training scripts
+│   │   ├── generate_pictograms.py        # Inference script
+│   └── evaluation/                       # Evaluation and metrics
+│       ├── easyread_metrics.py           # EasyRead scoring metrics
+│       └── easyread_analysis.py          # Analysis and visualization
+├── data/                                 # Datasets and training data
 ```
-
 
 ## License
 
