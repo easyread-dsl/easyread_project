@@ -12,12 +12,14 @@ Features:
 
 Notes:
 - For speed/quality, run on GPU if available.
+- Now supports SVG images (needed for aac and mulberry when SVGs are present).
 """
 
 import json
 import csv
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from io import BytesIO
 
 from PIL import Image
 import torch
@@ -121,6 +123,33 @@ def build_hint(meta: Dict[str, Any]) -> str:
             seen.add(p); uniq.append(p)
     return ", ".join(uniq)
 
+# ------------------------- Image loading (SVG support) -------------------------
+
+def _load_image_rgb(path: Path) -> Optional[Image.Image]:
+    """
+    Load an image as RGB.
+    Supports common raster formats via PIL.
+    If the file is SVG, rasterizes via cairosvg if installed.
+    """
+    if not path.exists():
+        return None
+
+    if path.suffix.lower() == ".svg":
+        try:
+            import cairosvg  # type: ignore
+        except Exception:
+            return None
+        try:
+            png_bytes = cairosvg.svg2png(url=str(path))
+            return Image.open(BytesIO(png_bytes)).convert("RGB")
+        except Exception:
+            return None
+
+    try:
+        return Image.open(path).convert("RGB")
+    except Exception:
+        return None
+
 # ------------------------- Prompt generation -------------------------
 
 @torch.no_grad()
@@ -133,9 +162,9 @@ def generate_prompt_for_image(
 ) -> Optional[str]:
     if not image_path.exists():
         return None
-    try:
-        image = Image.open(image_path).convert("RGB")
-    except Exception:
+
+    image = _load_image_rgb(image_path)
+    if image is None:
         return None
 
     hint = build_hint(meta)

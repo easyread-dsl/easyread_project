@@ -3,7 +3,7 @@
 """
 Fast summary for training_data focused on prompts (no filesystem checks):
 
-- totals and per-dataset counts
+- totals and per-dataset counts (now includes aac + mulberry automatically via metadata)
 - licenses, categories (top N)
 - prompt stats: how many entries have prompts, per-dataset breakdown,
   prompt length buckets, and prompt_model counts
