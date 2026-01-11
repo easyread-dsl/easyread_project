@@ -38,7 +38,7 @@ import requests
 
 
 BASE_URL_DEFAULT = "https://aacil.neocities.org/"
-DEFAULT_OUT_DIR = Path("../../data/aac")  # as requested
+DEFAULT_OUT_DIR = Path("../../../data/aac")  # as requested
 
 
 @dataclass(frozen=True)
