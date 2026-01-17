@@ -217,7 +217,7 @@ sks cat: a cat sitting down with a collar; background color: yellow; skin color:
 - **color attributes**: Controllability parameters (if all three are present)
 
 **Color vocabularies:**
-- Skin colors: `white`, `black`, `assian`, `mulatto`, `aztec`
+- Skin colors: `white`, `black`, `assian`, `mulatto`, `aztec` (Note: "assian" is the spelling used in ARASAAC dataset)
 - Hair colors: `blonde`, `brown`, `darkBrown`, `gray`, `darkGray`, `red`, `black`
 - Background colors: `red`, `green`, `blue`, `yellow`, `black`, `white`
 
@@ -281,23 +281,25 @@ sks cat: a cat sitting down with a collar; background color: yellow; skin color:
 
 ## Running the Pipeline
 
+All commands should be run from the project root directory unless otherwise specified.
+
 ### Step 1: Prepare Dataset
 ```bash
-cd src/data_format_regularization
-python prepare_dataset.py
+python src/data_format_regularization/prepare_dataset.py
 ```
 Output: `data/training_data/` with images and initial metadata
 
 ### Step 2: Generate Prompts
 ```bash
-python add_prompts.py
+python src/data_format_regularization/add_prompts.py
 ```
 Output: Updated metadata.json with BLIP-2 generated prompts
 
 ### Step 3: Train Model
 ```bash
-cd ../training
-python train_lora.py --data_dir="../../data/training_data" --output_dir="./lora_output"
+python src/training/train_lora.py \
+    --data_dir="data/training_data" \
+    --output_dir="./lora_output"
 ```
 
 ---
