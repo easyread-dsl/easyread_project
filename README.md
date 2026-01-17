@@ -9,6 +9,8 @@ The pipeline consists of:
 2. LoRA training - Finetune SD 1.5 with LoRA adapters
 3. Inference - Generate new pictograms using trained model
 
+📖 **For detailed information about data preprocessing, see [DATA_PREPROCESSING.md](DATA_PREPROCESSING.md)**
+
 ## Dependencies
 
 Install the following packages:
