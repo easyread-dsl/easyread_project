@@ -11,30 +11,34 @@ The pipeline consists of:
 
 ## Dependencies
 
-Install the following packages:
+Create and activate a Conda environment, then install the project requirements:
 
 ```bash
-pip install torch torchvision torchaudio
-pip install diffusers==0.25.0
-pip install transformers==4.36.0
-pip install accelerate==0.25.0
-pip install peft==0.7.1
-pip install datasets
-pip install Pillow
-pip install tqdm
+conda create -n easyread python=3.10 -y
+conda activate easyread
+pip install -r requirements.txt
 ```
 
-For GPU training, ensure you have CUDA installed.
-
-## Checkpoint
-
-Download our checkpoint (trained on LDS, openmoji and augmented ARASAAC) [here](https://huggingface.co/rllover123/easyread-dsl)
+For GPU training, ensure you have CUDA installed and a PyTorch build compatible with your system.
 
 ### Hardware Requirements
 
 - GPU: Minimum 12GB VRAM (16GB+ recommended)
-- RAM: 16GB+ system RAM
-- Storage: ~5GB for model weights, ~1GB for dataset
+
+## Datasets
+
+This project uses the following data sources for training and preprocessing:
+
+| Dataset | Purpose | Attribution / license | Example |
+| --- | --- | --- | --- |
+| [**OpenMoji**](https://openmoji.org/) | Open-source emoji and icon set used as a pictogram-style training source. | `All emojis designed by OpenMoji - the open-source emoji and icon project. License: CC BY-SA 4.0` | <img src="docs/images/openmoji.png" alt="OpenMoji example" width="120"> |
+| [**ARASAAC**](https://arasaac.org/) | AAC pictograms and communication materials used as a core training source. | `ARASAAC pictograms and materials are provided by ARASAAC (Gobierno de Aragón) and are used under the CC BY-NC-SA license.` | <img src="docs/images/arasaac.png" alt="ARASAAC example" width="120"> |
+| [**LDS / Easy on the i**](https://www.learningdisabilityservice-leeds.nhs.uk/easy-on-the-i/) | Easy-read image resources from Leeds and York Partnership NHS Foundation Trust. | `All Images/Resources copyright © LYPFT` | <img src="docs/images/lds.png" alt="LDS example" width="120"> |
+
+## Checkpoint
+
+Download our checkpoint (trained on augmented ARASAAC, OpenMoji and LDS) [here](https://huggingface.co/rllover123/easyread-dsl). We license our checkpoint under the [CC BY-NC-SA license](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en).
+
 
 ## Usage: Generate Pictograms
 
@@ -162,4 +166,4 @@ Training will save checkpoints to `./lora_output/checkpoint-{step}/` and final m
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) license.
