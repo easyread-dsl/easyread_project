@@ -1,5 +1,13 @@
 # Finetuning Diffusion Models for EasyRead-Style Pictogram Generation
 
+<p align="center">
+  <img src="docs/images/title_image_1.png" alt="Title image 1" width="18%">
+  <img src="docs/images/title_image_2.png" alt="Title image 2" width="18%">
+  <img src="docs/images/title_image_5.png" alt="Title image 5" width="18%">
+  <img src="docs/images/title_image_4.png" alt="Title image 4" width="18%">
+  <img src="docs/images/title_image_3.png" alt="Title image 3" width="18%">
+</p>
+
 This pipeline trains a LoRA adapter on Stable Diffusion 1.5 to generate EasyRead-style pictograms for new concepts.
 
 ## Overview
