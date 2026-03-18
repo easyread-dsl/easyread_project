@@ -24,6 +24,8 @@ wandb/
 *.out
 *.err
 *.png
+!docs/images/
+!docs/images/*.png
 src/dataset_creation/arasaac/__pycache__/scrape.cpython-310.pyc
 src/training/wandb/latest-run
 src/training/wandb/latest-run
