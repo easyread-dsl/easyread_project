@@ -1,5 +1,4 @@
-# Steering Generative Models for Accessibility: EasyRead Image
-Generation
+# Steering Generative Models for Accessibility: EasyRead Image Generation
 
 <p align="center">
   <img src="docs/images/title_image_1.png" alt="Title image 1" width="18%">
