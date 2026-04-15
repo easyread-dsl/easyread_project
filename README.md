@@ -172,6 +172,30 @@ Training will save checkpoints to `./lora_output/checkpoint-{step}/` and final m
 ├── data/                                 # Datasets and training data
 ```
 
+## Citation
+If you find the code or data useful for your research, please cite our paper:
+
+```bibtex
+@inproceedings{10.1145/3772363.3798916,
+author = {Dickenmann, Nicolas and Merzouki, Yanis and Laguna, Sonia and Nowak-Tran, Thy and Palumbo, Emanuele and Vogt, Julia E. and Binder, Gerda},
+title = {Steering Generative Models for Accessibility: EasyRead Image Generation},
+year = {2026},
+isbn = {9798400722813},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3772363.3798916},
+doi = {10.1145/3772363.3798916},
+abstract = {EasyRead pictograms are simple, visually clear images that represent specific concepts and support comprehension for people with intellectual disabilities, low literacy, or language barriers. The large-scale production of EasyRead content has traditionally been constrained by the cost and expertise required to manually design pictograms. In contrast, automatic generation of such images could significantly reduce production time and cost, enabling broader accessibility across digital and printed materials. However, modern diffusion-based image generation models tend to produce outputs that exhibit excessive visual detail and lack stylistic stability across random seeds, limiting their suitability for clear and consistent pictogram generation. This challenge highlights the need for methods specifically tailored to accessibility-oriented visual content. In this work, we present a unified pipeline for generating EasyRead pictograms by fine-tuning a Stable Diffusion model using LoRA adapters on a curated corpus that combines augmented samples from multiple pictogram datasets. Since EasyRead pictograms lack a unified formal definition, we introduce an EasyRead score to benchmark pictogram quality and consistency. Our results demonstrate that diffusion models can be effectively steered toward producing coherent EasyRead-style images, indicating that generative models can serve as practical tools for scalable and accessible pictogram production.},
+booktitle = {Proceedings of the Extended Abstracts of the 2026 CHI Conference on Human Factors in Computing Systems},
+articleno = {618},
+numpages = {13},
+keywords = {Diffusion Models, Stable Diffusion, LoRA Finetuning, Cognitive Accessibility, Pictogram Generation, EasyRead Metrics, Visual Communication},
+location = {
+},
+series = {CHI EA '26}
+}
+```
+
 ## License
 
 This project is licensed under the [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/) license.
